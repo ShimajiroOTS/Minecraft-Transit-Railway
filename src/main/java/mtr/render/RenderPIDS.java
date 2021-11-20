@@ -85,9 +85,11 @@ public class RenderPIDS<T extends BlockEntity> implements IGui, BlockEntityRende
 		}
 
 		final String[] customMessages = new String[maxArrivals];
+		final boolean[] hideArrival = new boolean[maxArrivals];
 		for (int i = 0; i < maxArrivals; i++) {
 			if (entity instanceof BlockPIDSBase.TileEntityBlockPIDSBase) {
 				customMessages[i] = ((BlockPIDSBase.TileEntityBlockPIDSBase) entity).getMessage(i);
+				hideArrival[i] = ((BlockPIDSBase.TileEntityBlockPIDSBase) entity).getHideArrival(i);
 			} else {
 				customMessages[i] = "";
 			}
@@ -158,7 +160,7 @@ public class RenderPIDS<T extends BlockEntity> implements IGui, BlockEntityRende
 				final int languageTicks = (int) Math.floor(RenderTrains.getGameTicks()) / SWITCH_LANGUAGE_TICKS;
 				final String destinationString;
 				final boolean useCustomMessage;
-				if (i < scheduleList.size()) {
+				if (i < scheduleList.size() && !hideArrival[i]) {
 					final String[] destinationSplit = scheduleList.get(i).destination.split("\\|");
 					if (customMessages[i].isEmpty()) {
 						destinationString = IGui.textOrUntitled(destinationSplit[languageTicks % destinationSplit.length]);

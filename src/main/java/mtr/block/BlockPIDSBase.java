@@ -95,7 +95,9 @@ public abstract class BlockPIDSBase extends HorizontalFacingBlock implements Blo
 	public abstract static class TileEntityBlockPIDSBase extends BlockEntity implements BlockEntityClientSerializable {
 
 		private final String[] messages = new String[getMaxArrivals()];
+		private final boolean[] hideArrival = new boolean[getMaxArrivals()];
 		private static final String KEY_MESSAGE = "message";
+		private static final String KEY_HIDE_ARRIVAL = "hide_arrival";
 
 		public TileEntityBlockPIDSBase(BlockEntityType<?> type, BlockPos pos, BlockState state) {
 			super(type, pos, state);
@@ -118,6 +120,7 @@ public abstract class BlockPIDSBase extends HorizontalFacingBlock implements Blo
 		public void fromClientTag(NbtCompound nbtCompound) {
 			for (int i = 0; i < getMaxArrivals(); i++) {
 				messages[i] = nbtCompound.getString(KEY_MESSAGE + i);
+				hideArrival[i] = nbtCompound.getBoolean(KEY_HIDE_ARRIVAL + i);
 			}
 		}
 
@@ -125,12 +128,14 @@ public abstract class BlockPIDSBase extends HorizontalFacingBlock implements Blo
 		public NbtCompound toClientTag(NbtCompound nbtCompound) {
 			for (int i = 0; i < getMaxArrivals(); i++) {
 				nbtCompound.putString(KEY_MESSAGE + i, messages[i] == null ? "" : messages[i]);
+				nbtCompound.putBoolean(KEY_HIDE_ARRIVAL + i, hideArrival[i]);
 			}
 			return nbtCompound;
 		}
 
-		public void setMessages(String[] messages) {
+		public void setData(String[] messages, boolean[] hideArrival) {
 			System.arraycopy(messages, 0, this.messages, 0, Math.min(messages.length, this.messages.length));
+			System.arraycopy(hideArrival, 0, this.hideArrival, 0, Math.min(hideArrival.length, this.hideArrival.length));
 			markDirty();
 			sync();
 		}
@@ -143,6 +148,14 @@ public abstract class BlockPIDSBase extends HorizontalFacingBlock implements Blo
 				return messages[index];
 			} else {
 				return "";
+			}
+		}
+
+		public boolean getHideArrival(int index) {
+			if (index >= 0 && index < getMaxArrivals()) {
+				return hideArrival[index];
+			} else {
+				return false;
 			}
 		}
 
