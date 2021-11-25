@@ -3,9 +3,7 @@ package mtr.gui;
 import mtr.data.IGui;
 import mtr.data.NameColorDataBase;
 import mtr.packet.IPacket;
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.text.LiteralText;
 import net.minecraft.text.Text;
@@ -18,8 +16,8 @@ public abstract class EditNameColorScreenBase<T extends NameColorDataBase> exten
 	private int colorEnd;
 
 	protected final T data;
-	protected final TextFieldWidget textFieldName;
-	protected final TextFieldWidget textFieldColor;
+	protected final WidgetBetterTextField textFieldName;
+	protected final WidgetBetterTextField textFieldColor;
 
 	private final DashboardScreen dashboardScreen;
 	private final Text nameText;
@@ -32,9 +30,8 @@ public abstract class EditNameColorScreenBase<T extends NameColorDataBase> exten
 		nameText = new TranslatableText(nameKey);
 		colorText = new TranslatableText(colorKey);
 
-		textRenderer = MinecraftClient.getInstance().textRenderer;
-		textFieldName = new TextFieldWidget(textRenderer, 0, 0, 0, SQUARE_SIZE, new LiteralText(""));
-		textFieldColor = new TextFieldWidget(textRenderer, 0, 0, 0, SQUARE_SIZE, new LiteralText(""));
+		textFieldName = new WidgetBetterTextField(null, "");
+		textFieldColor = new WidgetBetterTextField(WidgetBetterTextField.TextFieldFilter.HEX, "");
 	}
 
 	@Override
@@ -84,7 +81,7 @@ public abstract class EditNameColorScreenBase<T extends NameColorDataBase> exten
 		addDrawableChild(textFieldColor);
 	}
 
-	protected void renderTextFields(MatrixStack matrices, int mouseX, int mouseY, float delta) {
+	protected void renderTextFields(MatrixStack matrices) {
 		drawCenteredText(matrices, textRenderer, nameText, (nameStart + colorStart) / 2, TEXT_PADDING, ARGB_WHITE);
 		drawCenteredText(matrices, textRenderer, colorText, (colorStart + colorEnd) / 2, TEXT_PADDING, ARGB_WHITE);
 	}
