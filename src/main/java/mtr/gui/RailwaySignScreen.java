@@ -29,10 +29,6 @@ import java.util.stream.Collectors;
 public class RailwaySignScreen extends Screen implements IGui {
 
 	private int editingIndex;
-	private boolean isSelectingExitLetter;
-	private boolean isSelectingPlatform;
-	private boolean isSelectingRoute;
-
 	private int page;
 	private int totalPages;
 	private int columns;
@@ -43,27 +39,16 @@ public class RailwaySignScreen extends Screen implements IGui {
 	private final int length;
 	private final String[] signIds;
 	private final Set<Long> selectedIds;
-	private final List<Long> exitIds;
-	private final List<Long> platformIds;
-	private final List<Integer> routeColors;
-	private final List<NameColorDataBase> exitsForList;
-	private final List<NameColorDataBase> platformsForList;
-	private final List<NameColorDataBase> routesForList;
-	private final List<Integer> availableIndices;
-	private final List<Integer> selectedIndices;
-	private final List<NameColorDataBase> availableData;
-	private final List<NameColorDataBase> selectedData;
+	private final List<NameColorDataBase> exitsForList = new ArrayList<>();
+	private final List<NameColorDataBase> platformsForList = new ArrayList<>();
+	private final List<NameColorDataBase> routesForList = new ArrayList<>();
 	private final List<String> allSignIds = new ArrayList<>();
 
 	private final ButtonWidget[] buttonsEdit;
 	private final ButtonWidget[] buttonsSelection;
 	private final ButtonWidget buttonClear;
-	private final ButtonWidget buttonDone;
 	private final TexturedButtonWidget buttonPrevPage;
 	private final TexturedButtonWidget buttonNextPage;
-
-	private final DashboardList availableList;
-	private final DashboardList selectedList;
 
 	private static final int SIGN_SIZE = 32;
 	private static final int SIGN_BUTTON_SIZE = 16;
@@ -73,18 +58,7 @@ public class RailwaySignScreen extends Screen implements IGui {
 		super(new LiteralText(""));
 		editingIndex = -1;
 		this.signPos = signPos;
-		availableIndices = new ArrayList<>();
-		selectedIndices = new ArrayList<>();
-		availableData = new ArrayList<>();
-		selectedData = new ArrayList<>();
 		final ClientWorld world = MinecraftClient.getInstance().world;
-
-		exitsForList = new ArrayList<>();
-		exitIds = new ArrayList<>();
-		platformsForList = new ArrayList<>();
-		platformIds = new ArrayList<>();
-		routesForList = new ArrayList<>();
-		routeColors = new ArrayList<>();
 
 		for (final BlockRailwaySign.SignType signType : BlockRailwaySign.SignType.values()) {
 			allSignIds.add(signType.toString());
@@ -100,21 +74,16 @@ public class RailwaySignScreen extends Screen implements IGui {
 				final List<String> exitParents = new ArrayList<>(exits.keySet());
 				exitParents.sort(String::compareTo);
 				exitParents.forEach(exitParent -> {
-					exitIds.add(Station.serializeExit(exitParent));
 					final List<String> destinations = exits.get(exitParent);
-					exitsForList.add(new DataConverter(exitParent + " " + (destinations.size() > 0 ? destinations.get(0) : ""), 0));
+					exitsForList.add(new DataConverter(Station.serializeExit(exitParent), exitParent + " " + (destinations.size() > 0 ? destinations.get(0) : ""), 0));
 				});
 
 				final List<Platform> platforms = new ArrayList<>(ClientData.DATA_CACHE.requestStationIdToPlatforms(station.id).values());
 				Collections.sort(platforms);
-				platforms.stream().map(platform -> platform.id).forEach(platformIds::add);
-				platforms.stream().map(platform -> new DataConverter(platform.name + " " + IGui.mergeStations(ClientData.DATA_CACHE.requestPlatformIdToRoutes(platform.id).stream().map(route -> route.stationDetails.get(route.stationDetails.size() - 1).stationName).collect(Collectors.toList())), 0)).forEach(platformsForList::add);
+				platforms.stream().map(platform -> new DataConverter(platform.id, platform.name + " " + IGui.mergeStations(ClientData.DATA_CACHE.requestPlatformIdToRoutes(platform.id).stream().map(route -> route.stationDetails.get(route.stationDetails.size() - 1).stationName).collect(Collectors.toList())), 0)).forEach(platformsForList::add);
 
 				final Map<Integer, ClientCache.ColorNamePair> routeMap = ClientData.DATA_CACHE.stationIdToRoutes.get(station.id);
-				routeMap.forEach((color, route) -> {
-					routeColors.add(color);
-					routesForList.add(new DataConverter(route.name, route.color));
-				});
+				routeMap.forEach((color, route) -> routesForList.add(new DataConverter(route.color, route.name, route.color)));
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -159,19 +128,13 @@ public class RailwaySignScreen extends Screen implements IGui {
 		}
 
 		buttonClear = new ButtonWidget(0, 0, 0, SQUARE_SIZE, new TranslatableText("gui.mtr.reset_sign"), button -> setNewSignId(null));
-		buttonDone = new ButtonWidget(0, 0, 0, SQUARE_SIZE, new TranslatableText("gui.done"), button -> setIsSelecting(false, false, false));
-
 		buttonPrevPage = new TexturedButtonWidget(0, 0, 0, SQUARE_SIZE, 0, 0, 20, new Identifier("mtr:textures/gui/icon_left.png"), 20, 40, button -> setPage(page - 1));
 		buttonNextPage = new TexturedButtonWidget(0, 0, 0, SQUARE_SIZE, 0, 0, 20, new Identifier("mtr:textures/gui/icon_right.png"), 20, 40, button -> setPage(page + 1));
-
-		availableList = new DashboardList(null, null, null, null, this::onAdd, null, null, () -> ClientData.ROUTES_PLATFORMS_SEARCH, text -> ClientData.ROUTES_PLATFORMS_SEARCH = text);
-		selectedList = new DashboardList(null, null, null, null, null, this::onDelete, null, () -> ClientData.ROUTES_PLATFORMS_SELECTED_SEARCH, text -> ClientData.ROUTES_PLATFORMS_SELECTED_SEARCH = text);
 	}
 
 	@Override
 	protected void init() {
 		super.init();
-		setIsSelecting(false, !isRailwaySign, false);
 
 		for (int i = 0; i < buttonsEdit.length; i++) {
 			IDrawing.setPositionAndWidth(buttonsEdit[i], (width - SIGN_SIZE * length) / 2 + i * SIGN_SIZE, SIGN_SIZE, SIGN_SIZE);
@@ -190,19 +153,12 @@ public class RailwaySignScreen extends Screen implements IGui {
 			addDrawableChild(buttonsSelection[index]);
 		}, true);
 
-		availableList.y = selectedList.y = SQUARE_SIZE * 2;
-		availableList.height = selectedList.height = height - SQUARE_SIZE * 5;
-		availableList.width = selectedList.width = PANEL_WIDTH;
-
 		final int buttonClearX = (width - PANEL_WIDTH - SQUARE_SIZE * 4) / 2;
 		final int buttonY = height - SQUARE_SIZE * 2;
 
 		IDrawing.setPositionAndWidth(buttonClear, buttonClearX, buttonY, PANEL_WIDTH);
 		buttonClear.visible = false;
 		addDrawableChild(buttonClear);
-
-		IDrawing.setPositionAndWidth(buttonDone, (width - PANEL_WIDTH) / 2, buttonY, PANEL_WIDTH);
-		addDrawableChild(buttonDone);
 
 		IDrawing.setPositionAndWidth(buttonPrevPage, buttonClearX + PANEL_WIDTH, buttonY, SQUARE_SIZE);
 		buttonPrevPage.visible = false;
@@ -211,14 +167,9 @@ public class RailwaySignScreen extends Screen implements IGui {
 		buttonNextPage.visible = false;
 		addDrawableChild(buttonNextPage);
 
-		availableList.init(this::addDrawableChild);
-		selectedList.init(this::addDrawableChild);
-	}
-
-	@Override
-	public void tick() {
-		availableList.tick();
-		selectedList.tick();
+		if (!isRailwaySign && client != null) {
+			client.setScreen(new DashboardListSelectorScreen(this::onClose, platformsForList, selectedIds, true, false));
+		}
 	}
 
 	@Override
@@ -226,67 +177,46 @@ public class RailwaySignScreen extends Screen implements IGui {
 		try {
 			renderBackground(matrices);
 
-			if (isSelectingExitLetter || isSelectingPlatform || isSelectingRoute) {
-				availableList.render(matrices, textRenderer);
-				selectedList.render(matrices, textRenderer);
-				super.render(matrices, mouseX, mouseY, delta);
-				drawCenteredText(matrices, textRenderer, new TranslatableText("gui.mtr.available"), width / 2 - PANEL_WIDTH / 2 - SQUARE_SIZE, SQUARE_SIZE + TEXT_PADDING, ARGB_WHITE);
-				drawCenteredText(matrices, textRenderer, new TranslatableText("gui.mtr.selected"), width / 2 + PANEL_WIDTH / 2 + SQUARE_SIZE, SQUARE_SIZE + TEXT_PADDING, ARGB_WHITE);
-			} else {
-				super.render(matrices, mouseX, mouseY, delta);
-				if (client == null) {
-					return;
-				}
+			super.render(matrices, mouseX, mouseY, delta);
+			if (client == null) {
+				return;
+			}
 
-				for (int i = 0; i < signIds.length; i++) {
-					if (signIds[i] != null) {
-						RenderRailwaySign.drawSign(matrices, null, textRenderer, signPos, signIds[i], (width - SIGN_SIZE * length) / 2F + i * SIGN_SIZE, 0, SIGN_SIZE, i, signIds.length - i - 1, selectedIds, Direction.UP, (textureId, x, y, size, flipTexture) -> {
-							RenderSystem.setShader(GameRenderer::getPositionTexShader);
-							RenderSystem.setShaderTexture(0, textureId);
-							drawTexture(matrices, (int) x, (int) y, 0, 0, (int) size, (int) size, (int) (flipTexture ? -size : size), (int) size);
-						});
+			for (int i = 0; i < signIds.length; i++) {
+				if (signIds[i] != null) {
+					RenderRailwaySign.drawSign(matrices, null, textRenderer, signPos, signIds[i], (width - SIGN_SIZE * length) / 2F + i * SIGN_SIZE, 0, SIGN_SIZE, i, signIds.length - i - 1, selectedIds, Direction.UP, (textureId, x, y, size, flipTexture) -> {
+						RenderSystem.setShader(GameRenderer::getPositionTexShader);
+						RenderSystem.setShaderTexture(0, textureId);
+						drawTexture(matrices, (int) x, (int) y, 0, 0, (int) size, (int) size, (int) (flipTexture ? -size : size), (int) size);
+					});
+				}
+			}
+
+			if (editingIndex >= 0) {
+				final int xOffsetSmall = (width - SIGN_BUTTON_SIZE * (columns * 4 + 3)) / 2 + SIGN_BUTTON_SIZE;
+				final int xOffsetBig = xOffsetSmall + SIGN_BUTTON_SIZE * (columns + 1);
+
+				loopSigns((index, x, y, isBig) -> {
+					final String signId = allSignIds.get(index);
+					final CustomResources.CustomSign sign = RenderRailwaySign.getSign(signId);
+					if (sign != null) {
+						final boolean moveRight = sign.hasCustomText() && sign.flipCustomText;
+						RenderSystem.setShader(GameRenderer::getPositionTexShader);
+						RenderSystem.setShaderTexture(0, sign.textureId);
+						RenderRailwaySign.drawSign(matrices, null, textRenderer, signPos, signId, (isBig ? xOffsetBig : xOffsetSmall) + x + (moveRight ? SIGN_BUTTON_SIZE * 2 : 0), BUTTON_Y_START + y, SIGN_BUTTON_SIZE, 2, 2, selectedIds, Direction.UP, (textureId, x1, y1, size, flipTexture) -> drawTexture(matrices, (int) x1, (int) y1, 0, 0, (int) size, (int) size, (int) (flipTexture ? -size : size), (int) size));
 					}
-				}
+				}, false);
 
-				if (editingIndex >= 0) {
-					final int xOffsetSmall = (width - SIGN_BUTTON_SIZE * (columns * 4 + 3)) / 2 + SIGN_BUTTON_SIZE;
-					final int xOffsetBig = xOffsetSmall + SIGN_BUTTON_SIZE * (columns + 1);
-
-					loopSigns((index, x, y, isBig) -> {
-						final String signId = allSignIds.get(index);
-						final CustomResources.CustomSign sign = RenderRailwaySign.getSign(signId);
-						if (sign != null) {
-							final boolean moveRight = sign.hasCustomText() && sign.flipCustomText;
-							RenderSystem.setShader(GameRenderer::getPositionTexShader);
-							RenderSystem.setShaderTexture(0, sign.textureId);
-							RenderRailwaySign.drawSign(matrices, null, textRenderer, signPos, signId, (isBig ? xOffsetBig : xOffsetSmall) + x + (moveRight ? SIGN_BUTTON_SIZE * 2 : 0), BUTTON_Y_START + y, SIGN_BUTTON_SIZE, 2, 2, selectedIds, Direction.UP, (textureId, x1, y1, size, flipTexture) -> drawTexture(matrices, (int) x1, (int) y1, 0, 0, (int) size, (int) size, (int) (flipTexture ? -size : size), (int) size));
-						}
-					}, false);
-
-					DrawableHelper.drawCenteredText(matrices, textRenderer, String.format("%s/%s", page + 1, totalPages), (width - PANEL_WIDTH - SQUARE_SIZE * 4) / 2 + PANEL_WIDTH + SQUARE_SIZE * 2, height - SQUARE_SIZE * 2 + TEXT_PADDING, ARGB_WHITE);
-				}
+				DrawableHelper.drawCenteredText(matrices, textRenderer, String.format("%s/%s", page + 1, totalPages), (width - PANEL_WIDTH - SQUARE_SIZE * 4) / 2 + PANEL_WIDTH + SQUARE_SIZE * 2, height - SQUARE_SIZE * 2 + TEXT_PADDING, ARGB_WHITE);
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-
-	}
-
-	@Override
-	public void mouseMoved(double mouseX, double mouseY) {
-		availableList.mouseMoved(mouseX, mouseY);
-		selectedList.mouseMoved(mouseX, mouseY);
 	}
 
 	@Override
 	public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
-		availableList.mouseScrolled(mouseX, mouseY, amount);
-		selectedList.mouseScrolled(mouseX, mouseY, amount);
-
-		if (!isSelectingPlatform && !isSelectingRoute && !isSelectingExitLetter) {
-			setPage(page + (int) Math.signum(-amount));
-		}
-
+		setPage(page + (int) Math.signum(-amount));
 		return super.mouseScrolled(mouseX, mouseY, amount);
 	}
 
@@ -378,10 +308,6 @@ public class RailwaySignScreen extends Screen implements IGui {
 
 	private void setNewSignId(String newSignId) {
 		if (editingIndex >= 0 && editingIndex < signIds.length) {
-			final boolean isExitLetter = newSignId != null && (newSignId.equals(BlockRailwaySign.SignType.EXIT_LETTER.toString()) || newSignId.equals(BlockRailwaySign.SignType.EXIT_LETTER_FLIPPED.toString()));
-			final boolean isPlatform = newSignId != null && (newSignId.equals(BlockRailwaySign.SignType.PLATFORM.toString()) || newSignId.equals(BlockRailwaySign.SignType.PLATFORM_FLIPPED.toString()));
-			final boolean isLine = newSignId != null && (newSignId.equals(BlockRailwaySign.SignType.LINE.toString()) || newSignId.equals(BlockRailwaySign.SignType.LINE_FLIPPED.toString()));
-			setIsSelecting(isExitLetter, isPlatform, isLine);
 			final CustomResources.CustomSign newSign = RenderRailwaySign.getSign(newSignId);
 
 			if (newSign != null && newSign.hasCustomText()) {
@@ -404,90 +330,20 @@ public class RailwaySignScreen extends Screen implements IGui {
 			}
 
 			signIds[editingIndex] = newSignId;
-		}
-	}
 
-	private void setIsSelecting(boolean isSelectingExitLetter, boolean isSelectingPlatform, boolean isSelectingRoute) {
-		this.isSelectingExitLetter = isSelectingExitLetter;
-		this.isSelectingPlatform = isSelectingPlatform;
-		this.isSelectingRoute = isSelectingRoute;
-		final boolean isSelecting = isSelectingExitLetter || isSelectingPlatform || isSelectingRoute;
-		for (final ButtonWidget button : buttonsEdit) {
-			button.visible = !isSelecting;
-		}
-		if (isSelecting) {
-			for (final ButtonWidget button : buttonsSelection) {
-				button.visible = false;
-			}
-			buttonPrevPage.visible = false;
-			buttonNextPage.visible = false;
-		} else {
-			setPage(page);
-		}
-		buttonClear.visible = !isSelecting;
-		buttonDone.visible = isSelecting && isRailwaySign;
-		availableList.x = isSelecting ? width / 2 - PANEL_WIDTH - SQUARE_SIZE : width;
-		selectedList.x = isSelecting ? width / 2 + SQUARE_SIZE : width;
-		updateList();
-	}
-
-	private void updateList() {
-		availableIndices.clear();
-		selectedIndices.clear();
-		availableData.clear();
-		selectedData.clear();
-		final List<NameColorDataBase> initialData = isSelectingExitLetter ? exitsForList : isSelectingPlatform ? platformsForList : routesForList;
-		final List<? extends Number> idList = isSelectingExitLetter ? exitIds : isSelectingPlatform ? platformIds : routeColors;
-
-		for (int i = 0; i < initialData.size(); i++) {
-			if (selectedIds.contains(idList.get(i).longValue())) {
-				selectedIndices.add(i);
-				selectedData.add(initialData.get(i));
-			} else {
-				availableIndices.add(i);
-				availableData.add(initialData.get(i));
+			final boolean isExitLetter = newSignId != null && (newSignId.equals(BlockRailwaySign.SignType.EXIT_LETTER.toString()) || newSignId.equals(BlockRailwaySign.SignType.EXIT_LETTER_FLIPPED.toString()));
+			final boolean isPlatform = newSignId != null && (newSignId.equals(BlockRailwaySign.SignType.PLATFORM.toString()) || newSignId.equals(BlockRailwaySign.SignType.PLATFORM_FLIPPED.toString()));
+			final boolean isLine = newSignId != null && (newSignId.equals(BlockRailwaySign.SignType.LINE.toString()) || newSignId.equals(BlockRailwaySign.SignType.LINE_FLIPPED.toString()));
+			if ((isExitLetter || isPlatform || isLine) && client != null) {
+				client.setScreen(new DashboardListSelectorScreen(this, isExitLetter ? exitsForList : isPlatform ? platformsForList : routesForList, selectedIds, false, false));
 			}
 		}
-
-		availableList.setData(availableData, false, false, false, false, true, false);
-		selectedList.setData(selectedData, false, false, false, false, false, true);
 	}
 
 	private void setPage(int newPage) {
 		page = MathHelper.clamp(newPage, 0, totalPages - 1);
 		buttonPrevPage.visible = editingIndex >= 0 && page > 0;
 		buttonNextPage.visible = editingIndex >= 0 && page < totalPages - 1;
-	}
-
-	private void onAdd(NameColorDataBase data, int index) {
-		try {
-			final int finalIndex = availableIndices.get(availableData.indexOf(data));
-			if (!isRailwaySign) {
-				selectedIds.clear();
-			}
-			if (isSelectingExitLetter) {
-				selectedIds.add(exitIds.get(finalIndex));
-			} else if (isSelectingPlatform) {
-				selectedIds.add(platformIds.get(finalIndex));
-			} else if (isSelectingRoute) {
-				selectedIds.add((long) routeColors.get(finalIndex));
-			}
-			updateList();
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
-
-	private void onDelete(NameColorDataBase data, int index) {
-		final int finalIndex = selectedIndices.get(selectedData.indexOf(data));
-		if (isSelectingExitLetter) {
-			selectedIds.remove(exitIds.get(finalIndex));
-		} else if (isSelectingPlatform) {
-			selectedIds.remove(platformIds.get(finalIndex));
-		} else if (isSelectingRoute) {
-			selectedIds.remove((long) routeColors.get(finalIndex));
-		}
-		updateList();
 	}
 
 	@FunctionalInterface
